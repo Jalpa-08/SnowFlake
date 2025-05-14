@@ -1,0 +1,129 @@
+CREATE OR REPLACE DATABASE BIT;
+USE BIT;
+CREATE OR REPLACE PROCEDURE demo_dateadd()
+RETURNS STRING
+LANGUAGE SQL
+AS
+$$
+BEGIN
+    -- Create the table if not exists
+    CREATE TABLE IF NOT EXISTS sample_dates (
+        id INT,
+        original_date DATE
+    );
+
+    -- Optional: insert demo data
+    INSERT INTO sample_dates (id, original_date)
+    SELECT column1, column2
+    FROM VALUES
+        (1, '2024-05-01'::DATE),
+        (2, '2024-06-15'::DATE),
+        (3, '2024-12-31'::DATE);
+
+    -- Insert into updated_dates (with timestamp)
+    INSERT INTO updated_dates
+    SELECT 
+        id,
+        original_date,
+        DATEADD(DAY, 10, original_date) AS date_plus_10_days,
+        CURRENT_TIMESTAMP() AS updated_at
+    FROM sample_dates;
+
+    RETURN 'Updated with timestamp.';
+END;
+$$;
+
+CREATE OR REPLACE TABLE updated_dates (
+    id INT,
+    original_date DATE,
+    date_plus_10_days DATE,
+    updated_at TIMESTAMP
+);
+
+CREATE OR REPLACE TASK run_dateadd_every_minute
+WAREHOUSE = COMPUTE_WH  -- replace with your actual warehouse
+SCHEDULE = 'USING CRON * * * * * UTC'  -- every 1 minute
+AS
+CALL demo_dateadd();
+ALTER TASK run_dateadd_every_minute RESUME;
+SHOW TASKS LIKE 'run_dateadd_every_minute';
+SELECT *
+FROM updated_dates
+WHERE updated_at >= DATEADD(MINUTE, -1, CURRENT_TIMESTAMP())
+ORDER BY updated_at DESC;
+
+
+-----------------------------------------------------------------------------------
+CREATE OR REPLACE TABLE run_log (
+    id INT AUTOINCREMENT,
+    run_time TIMESTAMP
+);
+
+CREATE OR REPLACE PROCEDURE log_run_time()
+RETURNS STRING
+LANGUAGE SQL
+AS
+$$
+BEGIN
+    INSERT INTO run_log (run_time)
+    VALUES (CURRENT_TIMESTAMP());
+
+    RETURN 'Run time logged.';
+END;
+$$;
+
+CREATE OR REPLACE TASK log_run_every_1_min
+WAREHOUSE = COMPUTE_WH  -- replace with your actual warehouse name
+SCHEDULE = 'USING CRON * * * * * UTC'  -- every 5 minutes
+AS
+CALL log_run_time();
+
+ALTER TASK log_run_every_1_min RESUME;
+
+SELECT *
+FROM run_log
+ORDER BY run_time DESC;
+
+---------------------------------------------------------------------------
+CREATE OR REPLACE TABLE user_activity (
+    user_id INT,
+    activity VARCHAR,
+    activity_time TIMESTAMP
+);
+
+CREATE OR REPLACE TABLE user_activity_archive (
+    user_id INT,
+    activity VARCHAR,
+    activity_time TIMESTAMP,
+    archived_at TIMESTAMP
+);
+
+CREATE OR REPLACE PROCEDURE archive_old_activity1()
+RETURNS STRING
+LANGUAGE SQL
+AS
+$$
+BEGIN
+    INSERT INTO user_activity_archive (user_id, activity, activity_time, archived_at)
+    SELECT user_id, activity, activity_time, CURRENT_TIMESTAMP()
+    FROM user_activity
+    WHERE activity_time < DATEADD(DAY, -30, CURRENT_TIMESTAMP());
+
+    DELETE FROM user_activity
+    WHERE activity_time < DATEADD(DAY, -30, CURRENT_TIMESTAMP());
+
+    RETURN 'Old activity archived and removed.';
+END;
+$$;
+
+CREATE OR REPLACE TASK archive_activity_daily
+WAREHOUSE = COMPUTE_WH  
+SCHEDULE = 'USING CRON * * * * * UTC'  -- Every 30days at 00:00 UTC
+AS
+CALL archive_old_activity();
+ALTER TASK archive_activity_daily RESUME;
+SELECT *
+FROM user_activity_archive
+ORDER BY archived_at DESC;
+
+
