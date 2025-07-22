@@ -1,0 +1,63 @@
+USE DEMO_DATABASE;
+-- Create a sample table
+CREATE OR REPLACE TABLE date_data (
+    id INT,
+    date_string VARCHAR
+);
+
+-- Insert test data
+INSERT INTO date_data (id, date_string) VALUES
+    (1, '2025-07-22'),       -- Valid YYYY-MM-DD
+    (2, '07/22/2025'),       -- Valid MM/DD/YYYY
+    (3, '2025-13-01'),       -- Invalid month
+    (4, '13/01/2025'),       -- Invalid month
+    (5, '2025-04-31'),       -- Invalid day (April has 30 days)
+    (6, '04/31/2025'),       -- Invalid day
+    (7, '2025/07/22'),       -- Wrong separator
+    (8, '2025-7-22'),        -- Wrong format (month not padded)
+    (9, '7/22/2025'),        -- Wrong format (month not padded)
+    (10, NULL),              -- NULL value
+    (11, '');                -- Empty string
+
+    -- Query to Validate Dates
+
+/*Uses regex to check if the string matches YYYY-MM-DD or MM/DD/YYYY.
+Uses TRY_TO_DATE to verify if the string is a valid date, trying both formats.*/
+
+SELECT 
+    id,
+    date_string,
+    -- Check format with regex
+    date_string REGEXP '^([0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/[0-9]{4})$' AS format_is_valid,
+    -- Try parsing as YYYY-MM-DD
+    TRY_TO_DATE(date_string, 'YYYY-MM-DD') AS parsed_yyyy_mm_dd,
+    -- Try parsing as MM/DD/YYYY
+    TRY_TO_DATE(date_string, 'MM/DD/YYYY') AS parsed_mm_dd_yyyy,
+    -- Check if either format results in a valid date
+    COALESCE(
+        TRY_TO_DATE(date_string, 'YYYY-MM-DD') IS NOT NULL,
+        TRY_TO_DATE(date_string, 'MM/DD/YYYY') IS NOT NULL
+    ) AS date_is_valid,
+    -- Combine format and date validity
+    date_string REGEXP '^([0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/[0-9]{4})$'
+        AND COALESCE(
+            TRY_TO_DATE(date_string, 'YYYY-MM-DD') IS NOT NULL,
+            TRY_TO_DATE(date_string, 'MM/DD/YYYY') IS NOT NULL
+        ) AS is_valid
+FROM date_data;
+
+--To extract valid dates and convert them to a standard format (e.g., YYYY-MM-DD)
+SELECT 
+    id,
+    date_string,
+    CASE 
+        WHEN TRY_TO_DATE(date_string, 'YYYY-MM-DD') IS NOT NULL THEN date_string
+        WHEN TRY_TO_DATE(date_string, 'MM/DD/YYYY') IS NOT NULL THEN TO_CHAR(TRY_TO_DATE(date_string, 'MM/DD/YYYY'), 'YYYY-MM-DD')
+        ELSE NULL
+    END AS standardized_date
+FROM date_data
+WHERE date_string REGEXP '^([0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/[0-9]{4})$'
+  AND COALESCE(
+      TRY_TO_DATE(date_string, 'YYYY-MM-DD') IS NOT NULL,
+      TRY_TO_DATE(date_string, 'MM/DD/YYYY') IS NOT NULL
+  );
