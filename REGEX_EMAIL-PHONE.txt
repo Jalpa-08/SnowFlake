@@ -1,0 +1,50 @@
+-- Create a sample table
+USE DEMO_DATABASE;
+CREATE OR REPLACE TABLE contacts (
+    phone_number VARCHAR
+);
+
+-- Insert test data
+INSERT INTO contacts (phone_number) VALUES
+    ('(123) 456-7890'),
+    ('123-456-7890'),
+    ('123 456 7890'),
+    ('(123)456-7890'),
+    ('1234567890'),
+    ('12-345-6789');
+
+-- Query with strict regex
+SELECT phone_number,
+       phone_number REGEXP '^\\([0-9]{3}\\) [0-9]{3}-[0-9]{4}$' AS is_valid_strict
+FROM contacts;
+
+-- Query with flexible regex
+SELECT phone_number,
+       phone_number REGEXP '^\\(?[0-9]{3}\\)?[ -]?[0-9]{3}[ -]?[0-9]{4}$' AS is_valid_flexible
+FROM contacts;
+
+-----------------------------------------------------
+-- Create a sample table
+CREATE OR REPLACE TABLE user_data (
+    id INT,
+    info VARCHAR
+);
+
+-- Insert test data
+INSERT INTO user_data (id, info) VALUES
+    (1, 'Contact: john.doe@example.com, Phone: (123) 456-7890'),
+    (2, 'Email: jane_smith123@company.org; Location: NY'),
+    (3, 'No email here'),
+    (4, 'alice@domain.co.uk, bob@domain.com');
+
+    SELECT 
+    id,
+    info,
+    REGEXP_SUBSTR(info, '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}') AS email
+FROM user_data;
+-- If a single column might contain multiple email addresses
+SELECT 
+    id,
+    info,
+    REGEXP_SUBSTR_ALL(info, '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}') AS emails
+FROM user_data;
